@@ -25,14 +25,8 @@ def cross_entropy_error(y, t):
         y = y.reshape(1, y.size)
 
     # 教師データがone-hot-vectorの場合、正解ラベルのインデックスに変換
-    print("t size", t.size)
-    print("y size", y.size)
     if t.size == y.size:
         t = t.argmax(axis=1)
-    print("t", t)
-    print("t shape", t.shape)
-    print("y", y)
-    print("y shape", y.shape)
 
     batch_size = y.shape[0]
 

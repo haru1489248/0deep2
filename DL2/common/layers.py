@@ -43,6 +43,27 @@ class Sigmoid:
         dx = dout * (1.0 - self.out) * self.out
         return dx
 
+class SigmoidWithLoss:
+    def __init__(self):
+        self.params, self.grads = [], []
+        self.loss = None
+        self.y = None # sigmoidの出力
+        self.t = None # 教師データ
+
+    def forward(self, x, t):
+        self.t = t
+        self.y = 1 / (1 + np.exp(-x))
+
+        self.loss = cross_entropy_error(np.c_[1 - self.y, self.y], self.t)
+
+        return self.loss
+
+    def backward(self, dout=1):
+        batch_size = self.t.shape[0]
+
+        dx = (self.y - self.t) * dout / batch_size
+        return dx
+
 class Affine:
     def __init__(self, W, b):
         self.params = [W, b]
@@ -88,6 +109,35 @@ class SoftmaxWithLoss:
         dx = self.y.copy()
         dx[np.arange(batch_size), self.t] -= 1
         dx *= dout
-        dx = dx / batch_size
+        dx = dx / batch_size # 勾配を平均化するためにバッチサイズで割る
 
         return dx
+
+# one-hotベクトルとの行列積を計算する代わりにインデックスを指定して行ベクトルを取り出す層
+class Embedding:
+    """
+    idx: 抽出する行のインデックス（単語ID）をnumpy配列として格納する
+    """
+    def __init__(self, W):
+        self.params = [W]
+        self.grads = [np.zeros_like(W)]
+        self.idx = None
+
+    def forward(self, idx):
+        W, = self.params
+        self.idx = idx
+        out = W[idx]
+        return out
+
+    def backward(self, dout):
+        dW, = self.grads
+        dW[...] = 0 # 要素を全て0にする
+
+        for i, word_id in enumerate(self.idx):
+            dW[word_id] += dout[i]
+
+        # もしくは
+        # np.add.at(dW, self.idx, dout)
+        # np.add.at(A, idx, B)はidxで指定した位置に対して、AにBを加算する
+
+        return None
