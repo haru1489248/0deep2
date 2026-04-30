@@ -155,3 +155,46 @@ def convert_one_hot(corpus, vocab_size):
                 one_hot[idx_0, idx_1, word_id] = 1
 
     return one_hot
+
+# 類推問題を解かせるための関数
+def analogy(a, b, c, word_to_id, id_to_word, word_matrix, top=5, answer=None):
+    for word in (a, b, c):
+        if word not in word_to_id:
+            print('%s is not found' % word)
+            return
+
+    print('\n[analogy] ' + a + ':' + b + ' = ' + c + ':?')
+
+    a_vec, b_vec, c_vec = word_matrix[word_to_id[a]], word_matrix[word_to_id[b]], word_matrix[word_to_id[c]]
+    query_vec = b_vec - a_vec + c_vec
+    query_vec = normalize(query_vec) # query_vecを長さ1にして、内積でcos類似度を計算できるようにする
+
+    # 本書のソースコードでは正規化していないが、内積をcos類似度として扱うためword_matrix側も正規化する
+    word_matrix = normalize(word_matrix.copy())
+
+    similarity = np.dot(word_matrix, query_vec)
+
+    if answer is not None:
+        print("==>" + answer + ":" + str(np.dot(word_matrix[word_to_id[answer]], query_vec)))
+
+    count = 0
+    for i in (-1 * similarity).argsort():
+        if np.isnan(similarity[i]): # NaN（Not a Number）を弾く
+            continue
+        if id_to_word[i] in (a, b, c): # 類推問題に使った単語そのものをanswerに入れない
+            continue
+        print(' {0}: {1}'.format(id_to_word[i], similarity[i]))
+
+        count += 1
+        if count >= top:
+            return
+
+# ベクトルの大きさを1に正規化する関数
+def normalize(x):
+    if x.ndim == 2:
+        s = np.sqrt((x * x).sum(1)) # keepdims=Trueで下のreshapeは不要かもしれない
+        x /= s.reshape((s.shape[0], 1)) # (batch_size,)となっているので(batch_size, 1)に変換
+    elif x.ndim == 1:
+        s = np.sqrt((x * x).sum())
+        x /= s
+    return x

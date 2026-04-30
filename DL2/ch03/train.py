@@ -1,6 +1,6 @@
 import sys
 sys.path.append('..')
-import numpy as np
+from common.np import * # import numpy as np
 from common.trainer import Trainer
 from common.optimizer import Adam
 from simple_cbow import SimpleCBOW
