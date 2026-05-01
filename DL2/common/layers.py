@@ -65,6 +65,9 @@ class SigmoidWithLoss:
         return dx
 
 class Affine:
+    """
+    入力ベクトルを欲しい次元のスコアに変換するための線形変換レイヤ
+    """
     def __init__(self, W, b):
         self.params = [W, b]
         self.grads = [np.zeros_like(W), np.zeros_like(b)]
