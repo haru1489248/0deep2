@@ -8,7 +8,7 @@ vocab_size = len(word_to_id)
 corpus_size = len(corpus)
 
 model = RnnlmGen()
-# model.load_params('../ch06/Rnnlm.pkl')
+model.load_params('../ch06/Rnnlm.pkl')
 
 # start文字とskip文字の設定
 start_word = 'you'
