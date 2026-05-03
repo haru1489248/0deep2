@@ -1,9 +1,9 @@
 import sys
 sys.path.append('..')
 import numpy as np
-from common.functions import softmax
-from ch06.rnnlm import Rnnlm
-from ch06.better_rnnlm import BetterRnnlm
+from DL2.common.functions import softmax
+from DL2.ch06.rnnlm import Rnnlm
+from DL2.ch06.better_rnnlm import BetterRnnlm
 
 class RnnlmGen(Rnnlm):
     def generate(self, start_id, skip_ids=None, sample_size=100):
