@@ -350,3 +350,133 @@ class TimeDropout:
 
     def backward(self, dout):
         return dout * self.mask
+
+class TimeBiLSTM:
+    """
+    双方向LSTMレイヤ
+    左から右の時系列順の意味保管だけでなく、右から左の時系列順の意味補完もできるように改良された
+    """
+    def __init__(self, Wx1, Wh1, b1, Wx2, Wh2, b2, stateful=False):
+        self.forward_lstm = TimeLSTM(Wx1, Wh1, b1, stateful)
+        self.backward_lstm = TimeLSTM(Wx2, Wh2, b2, stateful)
+        self.params = self.forward_lstm.params + self.backward_lstm.params
+        self.grads = self.forward_lstm.grads + self.backward_lstm.grads
+
+    def forward(self, xs):
+        o1 = self.forward_lstm.forward(xs)
+        o2 = self.backward_lstm.forward(xs[:, ::-1])
+        o2 = o2[:, ::-1]
+
+        out = np.concatenate((o1, o2), axis=2)
+        return out
+
+    def backward(self, dhs):
+        H = dhs.shape[2] // 2
+        do1 = dhs[:, :, :H]
+        do2 = dhs[:, :, H:]
+
+        dxs1 = self.forward_lstm.backward(do1)
+        do2 = do2[:, ::-1]
+        dxs2 = self.backward_lstm.backward(do2)
+        dxs2 = dxs2[:, ::-1]
+        dxs = dxs1 + dxs2
+        return dxs
+
+class GRU:
+    def __init__(self, Wx, Wh, b):
+        """
+        Wx: 入力`x`用の重みパラーメタ（3つ分の重みをまとめる）
+        Wh: 隠れ状態`h`用の重みパラメータ（3つ分の重みをまとめる）
+        b: バイアス（3つ分のバイアスをまとめる）
+        """
+        self.params = [Wx, Wh, b]
+        self.grads = [np.zeros_like(Wx), np.zeros_like(Wh), np.zeros_like(b)]
+        self.cache = None
+
+    def forward(self, x, h_prev):
+        Wx, Wh, b = self.params
+        H = Wh.shape[0]
+        Wxz, Wxr, Wxh = Wx[:, :H], Wx[:, H:2 * H], Wx[:, 2 * H:]
+        Whz, Whr, Whh = Wh[:, :H], Wh[:, H:2 * H], Wh[:, 2 * H:]
+        bz, br, bh = b[:H], b[H:2 * H], b[2 * H:]
+
+        z = sigmoid(np.dot(x, Wxz) + np.dot(h_prev, Whz) + bz)
+        r = sigmoid(np.dot(x, Wxr) + np.dot(h_prev, Whr) + br)
+        h_hat = np.tanh(np.dot(x, Wxh) + np.dot(r*h_prev, Whh) + bh)
+        h_next = (1-z) * h_prev + z * h_hat
+
+        self.cache = (x, h_prev, z, r, h_hat)
+
+        return h_next
+
+    def backward(self, dh_next):
+        Wx, Wh, b = self.params
+        H = Wh.shape[0]
+        Wxz, Wxr, Wxh = Wx[:, :H], Wx[:, H:2 * H], Wx[:, 2 * H:]
+        Whz, Whr, Whh = Wh[:, :H], Wh[:, H:2 * H], Wh[:, 2 * H:]
+        x, h_prev, z, r, h_hat = self.cache
+
+        dh_hat =dh_next * z
+        dh_prev = dh_next * (1-z)
+
+        # tanh
+        dt = dh_hat * (1 - h_hat ** 2)
+        dbh = np.sum(dt, axis=0)
+        dWhh = np.dot((r * h_prev).T, dt)
+        dhr = np.dot(dt, Whh.T)
+        dWxh = np.dot(x.T, dt)
+        dx = np.dot(dt, Wxh.T)
+        dh_prev += r * dhr
+
+        # update gate(z)
+        dz = dh_next * h_hat - dh_next * h_prev
+        dt = dz * z * (1-z)
+        dbz = np.sum(dt, axis=0)
+        dWhz = np.dot(h_prev.T, dt)
+        dh_prev += np.dot(dt, Whz.T)
+        dWxz = np.dot(x.T, dt)
+        dx += np.dot(dt, Wxz.T)
+
+        # rest gate(r)
+        dr = dhr * h_prev
+        dt = dr * r * (1-r)
+        dbr = np.sum(dt, axis=0)
+        dWhr = np.dot(h_prev.T, dt)
+        dh_prev += np.dot(dt, Whr.T)
+        dWxr = np.dot(x.T, dt)
+        dx += np.dot(dt, Wxr.T)
+
+        self.dWx = np.hstack((dWxz, dWxr, dWxh))
+        self.dWh = np.hstack((dWhz, dWhr, dWhh))
+        self.db = np.hstack((dbz, dbr, dbh))
+
+        self.grads[0][...] = self.dWx
+        self.grads[1][...] = self.dWh
+        self.grads[2][...] = self.db
+
+        return dx, dh_prev
+
+class TimeGRU:
+    def __init__(self, Wx, Wh, b, stateful=False):
+        self.params = [Wx, Wh, b]
+        self.grads = [np.zeros_like(Wx), np.zeros_like(Wh), np.zeros_like(b)]
+        self.layers = None
+        self.h, self.dh = None, None
+        self.stateful = stateful
+
+    def forward(self, xs):
+        Wx, Wh, b = self.params
+        N, T, D = xs.shape
+        H = Wh.shape[0]
+        self.layers = []
+        hs = np.empty((N, T, H), dtype='f')
+
+        if not self.stateful or self.h is None:
+            self.h = np.zeros((N, H), dtype='f')
+
+        for t in range(T):
+            layer = GRU(*self.params)
+            self.h = layer.forward(xs[:, t, :], self.h)
+            hs[:, t, :] = self.h
+            self.layers.append(layer)
+        return hs

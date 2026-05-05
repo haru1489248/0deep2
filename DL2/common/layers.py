@@ -89,6 +89,29 @@ class Affine:
         self.grads[1][...] = db
         return dx
 
+class Softmax:
+    def __init__(self):
+        self.params, self.grads = [], []
+        self.out = None
+
+    def forward(self, x):
+        self.out = softmax(x)
+        return self.out
+
+    def backward(self, dout):
+        # 1. 各要素ごとの積: y_i * (∂L/∂y_i)
+        dx = self.out * dout
+
+        # 2. バッチごとの総和: ∑ (y_j * ∂L/∂y_j)
+        sumdx = np.sum(dx, axis=1, keepdims=True)
+
+        # 3. Softmaxの微分公式を適用:
+        # dx = y_i * (∂L/∂y_i) - y_i * ∑ (y_j * ∂L/∂y_j)
+        #    = y_i * (∂L/∂y_i - ∑ y_j * ∂L/∂y_j)
+        dx -= self.out * sumdx
+
+        return dx
+
 class SoftmaxWithLoss:
     def __init__(self):
         self.params, self.grads = [], []

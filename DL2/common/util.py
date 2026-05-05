@@ -97,26 +97,37 @@ def most_similar(query, word_to_id, id_to_word, word_matrix, top=5):
         if count >= top:
             return
 
-# TODO: 確率については後で詳しく出てくるらしい
-# PPMI（Positive PMI）を計算する関数
-# 単語の出現回数を単語が共起した回数に近似して計算されている
 def ppmi(C, verbose=False, eps=1e-8):
+    """
+    【役割：単語の共起関係を「関連度」に変換する】
+
+    単純な「共起回数」だけでは、"the" などの高頻度単語がどの単語とも関連が深く見えてしまう。
+    PPMIは、それぞれの単語の出現頻度で正規化することで、単語同士の「相性の良さ」を抽出する。
+
+    ■ 数式との対応
+    PMI(x, y) = log2 [ P(x, y) / (P(x) * P(y)) ]
+    PPMI(x, y) = max(0, PMI(x, y))
+    """
     M = np.zeros_like(C, dtype=np.float32)
-    N = np.sum(C)
-    S = np.sum(C, axis=0)
+    N = np.sum(C)      # 全共起回数の総和
+    S = np.sum(C, axis=0) # 各単語の出現回数リスト (S[i] は単語iの出現回数)
     total = C.shape[0] * C.shape[1]
     cnt = 0
 
     for i in range(C.shape[0]):
         for j in range(C.shape[1]):
-            pmi = np.log2(C[i, j] * N / (S[j]*S[i]) + eps) # -infのエラーを避けるため、epsを足している
+            # --- PMIの計算ロジック ---
+            # 本来は P(x,y) = C[i,j]/N, P(x) = S[i]/N, P(y) = S[j]/N
+            # これを整理すると: (C[i,j] * N) / (S[i] * S[j]) となる
+            pmi = np.log2(C[i, j] * N / (S[j] * S[i]) + eps)
+
+            # 負の値は「関連なし」として0に切り捨て
             M[i, j] = max(0, pmi)
 
             if verbose:
                 cnt += 1
-
-                if cnt % (total//100 + 1) == 0:
-                    print('%.1f%% done' % (100*cnt/total))
+                if cnt % (total // 100 + 1) == 0:
+                    print('%.1f%% done' % (100 * cnt / total))
 
     return M
 

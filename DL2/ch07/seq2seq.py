@@ -25,7 +25,7 @@ class Encoder:
         xs = self.embed.forward(xs)
         hs = self.lstm.forward(xs)
         self.hs = hs
-        return hs[:, -1, :]
+        return hs[:, -1, :] # 最後の隠れ状態ベクトルだけ使用する
 
     def backward(self, dh):
         dhs = np.zeros_like(self.hs)

@@ -1,8 +1,12 @@
+"""
+参考記事[https://qiita.com/omiita/items/1735c1d048fe5f611f80]
+"""
+
 import numpy as np
 
 class SGD:
     """
-    lr: learning rate（学習率）
+    確率的勾配降下法（Stochastic Gradient Descent）
     """
     def __init__(self, lr):
         self.lr = lr
@@ -10,6 +14,46 @@ class SGD:
     def update(self, params, grads):
         for i in range(len(params)):
             params[i] -= self.lr * grads[i]
+
+class Momentum:
+    """
+    Momentum SGD
+    """
+    def __init__(self, lr=0.01, momentum=0.9):
+        self.lr = lr
+        self.momentum = momentum
+        self.v = None
+
+    def update(self, params, grads):
+        if self.v is None:
+            self.v = []
+            for param in params:
+                self.v.append(np.zeros_like(param))
+
+        for i in range(len(params)):
+            self.v[i] = self.momentum * self.v[i] - self.lr * grads[i]
+            params[i] += self.v[i]
+
+class Nesterov:
+    """
+    Nesterov's Accelerated Gradient (http://arxiv.org/abs/1212.0901)
+    """
+    def __init__(self, lr=0.01, momentum=0.9):
+        self.lr = lr
+        self.momentum = momentum
+        self.v = None
+
+    def update(self, params, grads):
+        if self.v is None:
+            self.v = []
+            for param in params:
+                self.v.append(np.zeros_like(param))
+
+        for i in range(len(params)):
+            self.v[i] *= self.momentum
+            self.v[i] -= self.lr * grads[i]
+            params[i] += self.momentum * self.momentum * self.v[i]
+            params[i] -= (1 + self.momentum) * self.lr * grads[i]
 
 class Adam:
     '''
